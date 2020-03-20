@@ -13,6 +13,7 @@
 # limitations under the License.
 package(default_visibility = ["//visibility:private"])
 
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("//kotlin:kotlin.bzl", "kt_jvm_binary", "kt_jvm_library", "kt_jvm_test")
 
 kt_jvm_binary(
@@ -72,13 +73,13 @@ kt_jvm_library(
 kt_jvm_library(
     name = "propagation_test_exporter_lib",
     srcs = ["propagation/Stub.kt"],
-    exports = ["//third_party/jvm/junit"],
+    exports = ["@kotlin_rules_maven//:junit_junit"],
 )
 
 kt_jvm_library(
     name = "propagation_test_runtime_lib",
     srcs = ["propagation/Stub.kt"],
-    runtime_deps = ["//third_party/jvm/junit"],
+    runtime_deps = ["@kotlin_rules_maven//:junit_junit"],
 )
 
 java_binary(

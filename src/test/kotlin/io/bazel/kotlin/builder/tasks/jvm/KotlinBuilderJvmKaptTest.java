@@ -19,32 +19,34 @@ import io.bazel.kotlin.builder.Deps.AnnotationProcessor;
 import io.bazel.kotlin.builder.Deps.Dep;
 import io.bazel.kotlin.builder.DirectoryType;
 import io.bazel.kotlin.builder.KotlinJvmTestBuilder;
+import java.io.File;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-
-import static io.bazel.kotlin.builder.KotlinJvmTestBuilder.*;
+import static io.bazel.kotlin.builder.KotlinJvmTestBuilder.KOTLIN_ANNOTATIONS;
+import static io.bazel.kotlin.builder.KotlinJvmTestBuilder.KOTLIN_STDLIB;
 
 @RunWith(JUnit4.class)
 public class KotlinBuilderJvmKaptTest {
-    private static final Dep AUTO_VALUE_ANNOTATIONS =
-            Dep.importJar(
-                    "autovalue_annotations",
-                    "external/io_bazel_rules_kotlin_com_google_auto_value_auto_value_annotations"
-                            + "/jar/io_bazel_rules_kotlin_com_google_auto_value_auto_value_annotations.jar");
-    private static final Dep AUTO_VALUE =
-            Dep.importJar(
-                    "autovalue",
-                    "external/io_bazel_rules_kotlin_com_google_auto_value_auto_value"
-                            + "/jar/io_bazel_rules_kotlin_com_google_auto_value_auto_value.jar");
+  private static final Dep AUTO_VALUE_ANNOTATIONS =
+      Dep.importJar(
+          "autovalue_annotations",
+          System.getProperty("auto_value_annotations")
+              .replaceFirst("external" + File.separator, ""));
+  private static final Dep AUTO_VALUE =
+      Dep.importJar(
+          "autovalue",
+          System.getProperty("auto_value")
+              .replaceFirst("external" + File.separator, ""));
   private static final AnnotationProcessor AUTO_VALUE_ANNOTATION_PROCESSOR =
       AnnotationProcessor.builder()
           .processClass("com.google.auto.value.processor.AutoValueProcessor")
           .processorPath(
-              Dep.classpathOf(AUTO_VALUE_ANNOTATIONS, AUTO_VALUE, KOTLIN_ANNOTATIONS).collect(Collectors.toSet()))
+              Dep.classpathOf(AUTO_VALUE_ANNOTATIONS, AUTO_VALUE, KOTLIN_ANNOTATIONS)
+                  .collect(Collectors.toSet()))
           .build();
 
   private static final KotlinJvmTestBuilder ctx = new KotlinJvmTestBuilder();
@@ -59,24 +61,27 @@ public class KotlinBuilderJvmKaptTest {
   public void testKaptKt() {
     ctx.runCompileTask(
         ADD_AUTO_VALUE_PLUGIN,
-        c ->
-            c.addSource(
-                "TestKtValue.kt",
-                "package autovalue\n"
-                    + "\n"
-                    + "import com.google.auto.value.AutoValue\n"
-                    + "\n"
-                    + "@AutoValue\n"
-                    + "abstract class TestKtValue {\n"
-                    + "    abstract fun name(): String\n"
-                    + "    fun builder(): Builder = AutoValue_TestKtValue.Builder()\n"
-                    + "\n"
-                    + "    @AutoValue.Builder\n"
-                    + "    abstract class Builder {\n"
-                    + "        abstract fun setName(name: String): Builder\n"
-                    + "        abstract fun build(): TestKtValue\n"
-                    + "    }\n"
-                    + "}"));
+        c -> {
+          c.addSource(
+              "TestKtValue.kt",
+              "package autovalue\n"
+                  + "\n"
+                  + "import com.google.auto.value.AutoValue\n"
+                  + "\n"
+                  + "@AutoValue\n"
+                  + "abstract class TestKtValue {\n"
+                  + "    abstract fun name(): String\n"
+                  + "    fun builder(): Builder = AutoValue_TestKtValue.Builder()\n"
+                  + "\n"
+                  + "    @AutoValue.Builder\n"
+                  + "    abstract class Builder {\n"
+                  + "        abstract fun setName(name: String): Builder\n"
+                  + "        abstract fun build(): TestKtValue\n"
+                  + "    }\n"
+                  + "}");
+          c.outputJar().outputSrcJar();
+        }
+    );
 
     ctx.assertFilesExist(
         DirectoryType.CLASSES,
@@ -89,8 +94,8 @@ public class KotlinBuilderJvmKaptTest {
   public void testMixedKaptBiReferences() {
     ctx.runCompileTask(
         ADD_AUTO_VALUE_PLUGIN,
-        it -> {
-          it.addSource(
+        ctx -> {
+          ctx.addSource(
               "TestKtValue.kt",
               "package autovalue.a\n"
                   + "\n"
@@ -109,7 +114,7 @@ public class KotlinBuilderJvmKaptTest {
                   + "    }\n"
                   + "}");
 
-          it.addSource(
+          ctx.addSource(
               "TestAutoValue.java",
               "package autovalue.b;\n"
                   + "\n"
@@ -132,6 +137,7 @@ public class KotlinBuilderJvmKaptTest {
                   + "    }\n"
                   + "\n"
                   + "}");
+          ctx.outputJar().outputSrcJar();
         });
     ctx.assertFilesExist(
         DirectoryType.SOURCE_GEN,

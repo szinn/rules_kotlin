@@ -11,21 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-load("//src/main/kotlin:bootstrap.bzl", "kt_bootstrap_library")
+load("@rules_java//java:defs.bzl", "java_binary")
 load("//kotlin:kotlin.bzl", "kt_jvm_library")
 load("//third_party:jarjar.bzl", "jar_jar")
-
-# The compiler library, this is co-located in the kotlin compiler classloader.
-kt_bootstrap_library(
-    name = "compiler_lib",
-    srcs = glob(["io/bazel/kotlin/compiler/*.kt"]),
-    neverlink_deps = [
-        "@com_github_jetbrains_kotlin//:kotlin-compiler",
-        "@com_github_jetbrains_kotlin//:kotlin-annotation-processing",
-        "@com_github_jetbrains_kotlin//:kotlin-script-runtime",
-    ],
-    visibility = ["//src/test/kotlin/io/bazel/kotlin/builder:__subpackages__"],
-)
+load("//kotlin/internal/utils:packager.bzl", "release_archive")
 
 java_binary(
     name = "builder_raw",
@@ -44,16 +33,28 @@ jar_jar(
 java_binary(
     name = "builder",
     data = [
-        ":compiler_lib.jar",
+        "//src/main/kotlin/io/bazel/kotlin/compiler:compiler",
         "@com_github_jetbrains_kotlin//:lib/kotlin-compiler.jar",
     ],
-    main_class = "io.bazel.kotlin.builder.KotlinBuilderMain",
-    runtime_deps = [":builder_jar_jar"],
     jvm_flags = [
         "-XX:+IgnoreUnrecognizedVMOptions",
         "--add-opens=java.base/java.nio=ALL-UNNAMED",
         "--add-opens=java.base/java.lang=ALL-UNNAMED",
         "--add-opens=jdk.jdeps/com.sun.tools.jdeps=ALL-UNNAMED",
     ],
+    main_class = "io.bazel.kotlin.builder.KotlinBuilderMain",
     visibility = ["//visibility:public"],
+    runtime_deps = [":builder_jar_jar"],
+)
+
+release_archive(
+    name = "pkg",
+    srcs = [
+        "//src/main/kotlin/io/bazel/kotlin/compiler:compiler",
+    ],
+    package_dir = "src/main/kotlin",  # explicitly set the package directory, as there are no parent release_archives.
+    src_map = {
+        ":builder_deploy.jar": "kotlin_worker.jar",
+        "BUILD.release.bazel": "BUILD.bazel",
+    },
 )

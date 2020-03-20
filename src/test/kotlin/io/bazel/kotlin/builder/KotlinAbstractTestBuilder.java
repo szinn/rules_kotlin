@@ -16,10 +16,20 @@
 package io.bazel.kotlin.builder;
 
 import io.bazel.kotlin.builder.toolchain.CompilationStatusException;
-import io.bazel.kotlin.builder.utils.CompilationTaskContext;
-import io.bazel.kotlin.model.*;
-
-import java.io.*;
+import io.bazel.kotlin.builder.toolchain.CompilationTaskContext;
+import io.bazel.kotlin.model.CompilationTaskInfo;
+import io.bazel.kotlin.model.KotlinToolchainInfo;
+import io.bazel.kotlin.model.Platform;
+import io.bazel.kotlin.model.RuleKind;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.io.UncheckedIOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -38,7 +48,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 abstract class KotlinAbstractTestBuilder<T> {
   private static final Path BAZEL_TEST_DIR =
-      Paths.get(Objects.requireNonNull(System.getenv("TEST_TMPDIR")));
+      FileSystems.getDefault().getPath(System.getenv("TEST_TMPDIR"));
 
   private static final AtomicInteger counter = new AtomicInteger(0);
   private final CompilationTaskInfo.Builder infoBuilder = CompilationTaskInfo.newBuilder();
@@ -63,7 +73,7 @@ abstract class KotlinAbstractTestBuilder<T> {
     return outLines;
   }
 
-  final void resetForNext() {
+  public final void resetForNext() {
     outLines = null;
     label = "a_test_" + counter.incrementAndGet();
     infoBuilder
@@ -80,7 +90,7 @@ abstract class KotlinAbstractTestBuilder<T> {
                         .setLanguageVersion("1.2"))
                 .setJvm(KotlinToolchainInfo.Jvm.newBuilder().setJvmTarget("1.8")));
     try {
-      this.instanceRoot = Files.createDirectory(BAZEL_TEST_DIR.resolve(Paths.get(label)));
+      this.instanceRoot = Files.createTempDirectory(BAZEL_TEST_DIR, label);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -96,14 +106,22 @@ abstract class KotlinAbstractTestBuilder<T> {
     infoBuilder.addAllDebug(Arrays.asList(tags));
   }
 
-  final Path writeSourceFile(String filename, String[] lines) {
-    Path path = directory(DirectoryType.SOURCES).resolve(filename).toAbsolutePath();
+  final Path writeFile(DirectoryType dirType, String filename, String[] lines) {
+    Path path = directory(dirType).resolve(filename).toAbsolutePath();
     try (FileOutputStream fos = new FileOutputStream(path.toFile())) {
       fos.write(String.join("\n", lines).getBytes(UTF_8));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
     return path;
+  }
+
+  public final Path writeSourceFile(String filename, String[] lines) {
+    return writeFile(DirectoryType.SOURCES, filename, lines);
+  }
+
+  public final Path writeGeneratedSourceFile(String filename, String[] lines) {
+    return writeFile(DirectoryType.SOURCE_GEN, filename, lines);
   }
 
   private <R> R runCompileTask(

@@ -33,7 +33,11 @@ def _make_providers(ctx, providers, transitive_files = depset(order = "default")
             DefaultInfo(
                 files = depset([ctx.outputs.jar]),
                 runfiles = ctx.runfiles(
+                    # explicitly include data files, otherwise they appear to be missing
+                    files = ctx.files.data,
                     transitive_files = transitive_files,
+                    # continue to use collect_default until proper transitive data collecting is
+                    # implmented.
                     collect_default = True,
                 ),
             ),
@@ -62,6 +66,9 @@ def _write_launcher_action(ctx, rjars, main_class, jvm_flags, args = "", wrapper
             "%javabin%": javabin,
             "%jvm_flags%": jvm_flags,
             "%set_jacoco_metadata%": "",
+            "%set_jacoco_main_class%": "",
+            "%set_jacoco_java_runfiles_root%": "",
+            "%set_java_coverage_new_implementation%": "",
             "%workspace_prefix%": ctx.workspace_name + "/",
         },
         is_executable = True,
@@ -73,7 +80,10 @@ def _unify_jars(ctx):
     else:
         # Legacy handling.
         jars = []
-        source_jars = [ctx.file.srcjar] if ctx.file.srcjar else []
+        if (ctx.file.srcjar and not "%s" % ctx.file.srcjar.path == "third_party/empty.jar"):
+            source_jars = [ctx.file.srcjar]
+        else:
+            source_jars = []
 
         # TODO after a while remove the for block, the checks after it,and simplify the source-jar to jar allignment.
         # There must be a single jar jar and it can either be a filegroup or a JavaInfo.
@@ -98,9 +108,7 @@ def _unify_jars(ctx):
             fail("got more than one jar, this is an error create an issue: %s" % jars)
         if len(source_jars) > 1:
             fail("got more than one source jar. " +
-                 "Did you include both srcjar and a sources jar in the jars attribute?: " +
-                 jars)
-            print(source_jars)
+                 "Did you include both srcjar and a sources jar in the jars attribute?: %s" % source_jars)
         return struct(class_jar = jars[0], source_jar = source_jars[0] if len(source_jars) == 1 else None, ijar = None)
 
 def kt_jvm_import_impl(ctx):
@@ -156,7 +164,9 @@ def kt_jvm_binary_impl(ctx):
 
 _SPLIT_STRINGS = [
     "src/test/java/",
+    "src/test/kotlin/",
     "javatests/",
+    "kotlin/",
     "java/",
     "test/",
 ]
